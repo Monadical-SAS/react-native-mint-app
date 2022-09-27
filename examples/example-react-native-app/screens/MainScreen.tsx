@@ -33,9 +33,8 @@ export default function MainScreen() {
           </Text>
           <Divider style={styles.spacer} />
 
-          <MintButton>
-            Mint NFT
-          </MintButton>
+          <MintButton />
+
         </ScrollView>
         {accounts && selectedAccount ? (
           <AccountInfo
