@@ -12,7 +12,7 @@ import {getCandyMachineState, mintOneToken} from '../utils/candy-machine';
 import {SnackbarContext} from './SnackbarProvider';
 
 const candyMachineId = new PublicKey(
-  '4sBYpJeQ8XEergKrivwJc4YejMXedEnugQddBzHktgy6',
+  '8NfYGcW3auAdBvddvaGWGmUHb5eoATFfRtGkqG1us3zJ',
 );
 
 export default function MintButton() {
@@ -21,6 +21,8 @@ export default function MintButton() {
   const setSnackbarProps = useContext(SnackbarContext);
 
   const [loading, setLoading] = useState(false);
+  const [signatureUrl, setSignatureUrl] = useState('');
+  const [mintUrl, setMintUrl] = useState('');
 
   const mintNewToken = useGuardedCallback(async (): Promise<any> => {
     const [signature, mint] = await transact(async wallet => {
@@ -53,13 +55,14 @@ export default function MintButton() {
 
     await connection.confirmTransaction(signature);
 
-    return [signature, mint];
+    return {signature, mint};
   }, [authorizeSession, connection]);
 
   const handleClickMintButton = async () => {
     try {
       setLoading(true);
       const result = await mintNewToken();
+      console.log(result);
       setLoading(false);
 
       if (!result && !(result.signature || result.mint)) {
@@ -67,16 +70,17 @@ export default function MintButton() {
         return;
       }
 
-      const [signature, mint] = result;
-      if (mint) {
-        const mintUrl = `https://explorer.solana.com/address/${mint}?cluster=devnet`;
-        await showSuccessAlert(' View NFT', mintUrl);
+      if (result.mint) {
+        const url = `https://explorer.solana.com/address/${result.mint}?cluster=devnet`;
+        setMintUrl(url);
+        await showSuccessAlert(' View NFT', url);
         return;
       }
 
-      if (signature) {
-        const signatureUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
-        await showSuccessAlert(' View transaction', signatureUrl);
+      if (result.signature) {
+        const url = `https://explorer.solana.com/tx/${result.signature}?cluster=devnet`;
+        setSignatureUrl(url);
+        await showSuccessAlert(' View transaction', url);
         return;
       }
 
@@ -93,7 +97,7 @@ export default function MintButton() {
       action: {
         label: title,
         async onPress() {
-          await Linking.openURL(url);
+          await openLink(url);
         },
       },
       children: 'NFT minted',
@@ -107,6 +111,10 @@ export default function MintButton() {
     });
   };
 
+  const openLink = async (url: string) => {
+    await Linking.openURL(url);
+  };
+
   return (
     <View style={styles.buttonGroup}>
       <Button
@@ -117,6 +125,24 @@ export default function MintButton() {
         style={styles.actionButton}>
         Mint NFT
       </Button>
+
+      {signatureUrl && (
+        <Button
+          onPress={() => openLink(signatureUrl)}
+          mode="contained"
+          style={styles.actionButton}>
+          View Signature
+        </Button>
+      )}
+
+      {mintUrl && (
+        <Button
+          onPress={() => openLink(mintUrl)}
+          mode="contained"
+          style={styles.actionButton}>
+          View NFT
+        </Button>
+      )}
     </View>
   );
 }
@@ -124,11 +150,11 @@ export default function MintButton() {
 const styles = StyleSheet.create({
   buttonGroup: {
     display: 'flex',
-    flexDirection: 'row',
+    flexDirection: 'column',
     width: '100%',
   },
   actionButton: {
     flex: 1,
-    marginEnd: 8,
+    marginBottom: 24,
   },
 });
