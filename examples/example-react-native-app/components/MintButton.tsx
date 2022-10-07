@@ -11,7 +11,9 @@ import useGuardedCallback from '../utils/useGuardedCallback';
 import {getCandyMachineState, mintOneToken} from '../utils/candy-machine';
 import {SnackbarContext} from './SnackbarProvider';
 
-const candyMachineId = new PublicKey(
+const EXPLORER_URL = 'https://explorer.solana.com';
+const CLUSTER = '?cluster=devnet';
+const CANDY_MACHINE_ID = new PublicKey(
   '8NfYGcW3auAdBvddvaGWGmUHb5eoATFfRtGkqG1us3zJ',
 );
 
@@ -21,8 +23,7 @@ export default function MintButton() {
   const setSnackbarProps = useContext(SnackbarContext);
 
   const [loading, setLoading] = useState(false);
-  const [signatureUrl, setSignatureUrl] = useState('');
-  const [mintUrl, setMintUrl] = useState('');
+  const [explorerURL, setExplorerURL] = useState('');
 
   const mintNewToken = useGuardedCallback(async (): Promise<any> => {
     const [signature, mint] = await transact(async wallet => {
@@ -31,7 +32,7 @@ export default function MintButton() {
 
       const candyMachine = await getCandyMachineState(
         {publicKey: freshAccount.publicKey} as anchor.Wallet,
-        candyMachineId,
+        CANDY_MACHINE_ID,
         connection,
       );
 
@@ -62,52 +63,36 @@ export default function MintButton() {
     try {
       setLoading(true);
       const result = await mintNewToken();
-      console.log(result);
       setLoading(false);
 
       if (!result && !(result.signature || result.mint)) {
-        showAlertError('Error minting the token');
+        showAlert('Error minting the token');
         return;
       }
 
       if (result.mint) {
-        const url = `https://explorer.solana.com/address/${result.mint}?cluster=devnet`;
-        setMintUrl(url);
-        await showSuccessAlert(' View NFT', url);
+        const url = `${EXPLORER_URL}/address/${result.mint}${CLUSTER}`;
+        setExplorerURL(url);
+        showAlert('NFT minted successfully');
         return;
       }
 
       if (result.signature) {
-        const url = `https://explorer.solana.com/tx/${result.signature}?cluster=devnet`;
-        setSignatureUrl(url);
-        await showSuccessAlert(' View transaction', url);
+        const url = `${EXPLORER_URL}/tx/${result.signature}${CLUSTER}`;
+        setExplorerURL(url);
+        showAlert('Signature generated successfully');
         return;
       }
 
-      showAlertError('Error minting the new NFT');
+      showAlert('Error minting the new NFT');
     } catch (error) {
       console.log(error);
     }
-
-    setLoading(false);
   };
 
-  const showSuccessAlert = async (title: string, url: string) => {
+  const showAlert = (message: string) => {
     setSnackbarProps({
-      action: {
-        label: title,
-        async onPress() {
-          await openLink(url);
-        },
-      },
-      children: 'NFT minted',
-    });
-  };
-
-  const showAlertError = (error: any) => {
-    const errorMessage = error instanceof Error ? error.message : error;
-    setSnackbarProps({
-      children: `Failed to mint: ${errorMessage}`,
+      children: message,
     });
   };
 
@@ -126,21 +111,12 @@ export default function MintButton() {
         Mint NFT
       </Button>
 
-      {signatureUrl && (
+      {explorerURL && (
         <Button
-          onPress={() => openLink(signatureUrl)}
+          onPress={() => openLink(explorerURL)}
           mode="contained"
           style={styles.actionButton}>
-          View Signature
-        </Button>
-      )}
-
-      {mintUrl && (
-        <Button
-          onPress={() => openLink(mintUrl)}
-          mode="contained"
-          style={styles.actionButton}>
-          View NFT
+          View Details
         </Button>
       )}
     </View>
