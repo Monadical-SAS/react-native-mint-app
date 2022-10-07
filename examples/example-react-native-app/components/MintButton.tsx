@@ -1,11 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import {useConnection} from '@solana/wallet-adapter-react';
-import {
-  PublicKey,
-  RpcResponseAndContext,
-  SignatureResult,
-  Transaction,
-} from '@solana/web3.js';
+import {PublicKey, Transaction} from '@solana/web3.js';
 import {transact} from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
 import React, {useContext, useState} from 'react';
 import {Linking, StyleSheet, View} from 'react-native';
@@ -15,10 +10,9 @@ import useAuthorization from '../utils/useAuthorization';
 import useGuardedCallback from '../utils/useGuardedCallback';
 import {getCandyMachineState, mintOneToken} from '../utils/candy-machine';
 import {SnackbarContext} from './SnackbarProvider';
-import {Base64EncodedAddress} from '@solana-mobile/mobile-wallet-adapter-protocol';
 
 const candyMachineId = new PublicKey(
-  '4muNoMvUbLFi8btqE8QV2YnsFYF2qUQ6tb9xVyHSUPFj',
+  '4sBYpJeQ8XEergKrivwJc4YejMXedEnugQddBzHktgy6',
 );
 
 export default function MintButton() {
@@ -28,79 +22,60 @@ export default function MintButton() {
 
   const [loading, setLoading] = useState(false);
 
-  const mintNewToken = useGuardedCallback(async (): Promise<
-    [string, RpcResponseAndContext<SignatureResult>]
-  > => {
-    const [signature] = await transact(async wallet => {
-      const [freshAccount, latestBlockhash] = await Promise.all([
-        authorizeSession(wallet),
-        connection.getLatestBlockhash(),
-      ]);
-
-      const accountPublicKey = freshAccount.publicKey;
-      const anchorWallet = {publicKey: accountPublicKey} as anchor.Wallet;
+  const mintNewToken = useGuardedCallback(async (): Promise<any> => {
+    const [signature, mint] = await transact(async wallet => {
+      const freshAccount = await authorizeSession(wallet);
+      const latestBlockhash = await connection.getLatestBlockhash();
 
       const candyMachine = await getCandyMachineState(
-        anchorWallet,
+        {publicKey: freshAccount.publicKey} as anchor.Wallet,
         candyMachineId,
         connection,
       );
 
-      const [instructions, signers] = await mintOneToken(
+      const [instructions, signers, mintPublicKey] = await mintOneToken(
         candyMachine,
-        accountPublicKey,
+        freshAccount.publicKey,
       );
 
       const transaction = new Transaction();
       instructions.forEach(instruction => transaction.add(instruction));
       transaction.recentBlockhash = latestBlockhash.blockhash;
-      transaction.feePayer = accountPublicKey;
+      transaction.feePayer = freshAccount.publicKey;
       transaction.partialSign(...signers);
 
-      return await wallet.signAndSendTransactions({
+      const signatureResponse = await wallet.signAndSendTransactions({
         transactions: [transaction],
       });
+
+      return [signatureResponse[0], mintPublicKey];
     });
 
-    return [signature, await connection.confirmTransaction(signature)];
+    await connection.confirmTransaction(signature);
+
+    return [signature, mint];
   }, [authorizeSession, connection]);
 
-  const getMintFromSignature = useGuardedCallback(
-    async (
-      signature: Base64EncodedAddress,
-    ): Promise<Base64EncodedAddress | null> => {
-      const tx = await connection.getTransaction(signature);
-      const postTokenBalances = tx?.meta?.postTokenBalances;
-      if (!postTokenBalances || postTokenBalances.length !== 1) return null;
-      return postTokenBalances[0].mint;
-    },
-  );
-
   const handleClickMintButton = async () => {
-    setLoading(true);
-
     try {
+      setLoading(true);
       const result = await mintNewToken();
-      if (!result) {
+      setLoading(false);
+
+      if (!result && !(result.signature || result.mint)) {
         showAlertError('Error minting the token');
         return;
       }
 
-      const [signature, {value: err}] = result;
-      if (err) {
-        showAlertError(err);
-        return;
-      }
-
-      const mint = await getMintFromSignature(signature);
+      const [signature, mint] = result;
       if (mint) {
-        const mintUrl = `https://www.solaneyes.com/address/${mint}`;
+        const mintUrl = `https://explorer.solana.com/address/${mint}?cluster=devnet`;
         await showSuccessAlert(' View NFT', mintUrl);
         return;
       }
 
       if (signature) {
-        const signatureUrl = `https://explorer.solana.com/tx/${signature}`;
+        const signatureUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
         await showSuccessAlert(' View transaction', signatureUrl);
         return;
       }

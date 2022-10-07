@@ -309,7 +309,9 @@ export const getCollectionAuthorityRecordPDA = async (
 export const mintOneToken = async (
   candyMachine: CandyMachineAccount,
   payer: anchor.web3.PublicKey,
-): Promise<[TransactionInstruction[], anchor.web3.Keypair[]]> => {
+): Promise<
+  [TransactionInstruction[], anchor.web3.Keypair[], anchor.web3.PublicKey]
+> => {
   const mint = anchor.web3.Keypair.generate();
   const userTokenAccountAddress = (
     await getAtaForMint(mint.publicKey, payer)
@@ -507,5 +509,5 @@ export const mintOneToken = async (
     }
   }
 
-  return [instructions, signers];
+  return [instructions, signers, mint.publicKey];
 };
